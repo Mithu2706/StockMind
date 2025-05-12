@@ -13,28 +13,38 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 app = Flask(__name__, static_folder="static", template_folder="templates") 
 
 def fetch_wikipedia_summary(company_name): 
+    print(f"\n🔍 ==== Fetching Wikipedia summary for {company_name} ====")
     try: 
         search_results = wikipedia.search(company_name) 
         if search_results: 
             page_title = search_results[0] 
             summary = wikipedia.summary(page_title, sentences=2) 
+            print(f"✅ Summary found for: {page_title}.")
             return page_title, summary 
     except Exception as e: 
+        print(f"❌ Error fetching Wikipedia summary: {str(e)}")
         return None, f"Error fetching Wikipedia summary: {str(e)}" 
+    print("⚠️ No Wikipedia page found for the given company.")
     return None, "No Wikipedia page found for the given company." 
+
  
 def fetch_stock_price(ticker): 
+    print(f"\n📈 ==== Fetching 3-month stock prices for {ticker} ====")
     try: 
         stock = yf.Ticker(ticker) 
         history = stock.history(period="3mo") 
         time_labels = history.index.strftime('%Y-%m-%d').tolist() 
-        stock_prices = [round(price, 2) for price in history['Close'].tolist()]  # Round prices to 2 decimal places
+        stock_prices = [round(price, 2) for price in history['Close'].tolist()]  
+        print(f"✅ Successfully fetched stock prices for {ticker}.")
         return stock_prices, time_labels 
     except Exception as e: 
+        print(f"❌ Error fetching stock price: {str(e)}")
         return None, None
+
 
  
 def get_ticker_from_alpha_vantage(company_name): 
+    print(f"\n🔎 ==== Searching Alpha Vantage for ticker: {company_name} ====")
     try: 
         url = "https://www.alphavantage.co/query" 
         params = { 
@@ -47,34 +57,37 @@ def get_ticker_from_alpha_vantage(company_name):
         if "bestMatches" in data: 
             for match in data["bestMatches"]: 
                 if match["4. region"] == "United States": 
+                    print(f"✅ Found ticker: {match['1. symbol']}")
                     return match["1. symbol"] 
+        print("⚠️ No suitable ticker found.")
         return None 
     except Exception as e: 
+        print(f"❌ Error fetching ticker: {str(e)}")
         return None 
+
  
 def fetch_market_cap(ticker): 
+    print(f"\n💰 ==== Fetching market cap for {ticker} ====")
     try: 
         stock = yf.Ticker(ticker) 
         market_cap = stock.info.get('marketCap', None) 
+        if market_cap:
+            print(f"✅ Market cap: {market_cap}")
+        else:
+            print("⚠️ Market cap not available.")
         return market_cap 
     except Exception as e: 
+        print(f"❌ Error fetching market cap: {str(e)}")
         return None 
- 
-def get_stock_price_for_competitor(ticker): 
-    try: 
-        stock = yf.Ticker(ticker) 
-        history = stock.history(period="3mo") 
-        time_labels = history.index.strftime('%Y-%m-%d').tolist() 
-        stock_prices = history['Close'].tolist() 
-        return stock_prices, time_labels 
-    except Exception as e: 
-        return None, None 
+
  
 def get_top_competitors(competitors): 
+    print("\n👥 ==== Processing Top Competitors ====")
     competitor_data = [] 
-    processed_tickers = set()  # To track processed tickers and avoid duplicates 
+    processed_tickers = set()  
  
-    for competitor in set(competitors):  # Remove duplicate names 
+    for competitor in set(competitors):  
+        print(f"\n➡️ Processing competitor: {competitor}")
         ticker = get_ticker_from_alpha_vantage(competitor) 
         if ticker and ticker not in processed_tickers: 
             market_cap = fetch_market_cap(ticker) 
@@ -88,13 +101,20 @@ def get_top_competitors(competitors):
                     "time_labels": time_labels, 
                     "stock_price": stock_prices[-1], 
                 }) 
-                processed_tickers.add(ticker)  # Add ticker to the processed set 
+                processed_tickers.add(ticker)  
+                print(f"✅ Added {competitor} ({ticker}) to top competitors.")
+            else:
+                print(f"⚠️ Incomplete data for {competitor}. Skipping.")
  
-    # Sort competitors by market cap and return the top 3 
     top_competitors = sorted(competitor_data, key=lambda x: x["market_cap"], reverse=True)[:3] 
+    print("🏆 Top competitors selected based on market cap.")
     return top_competitors 
+
+ 
+
  
 def query_gemini_llm(description): 
+    print("\n🤖 ==== Querying Gemini for sector and competitor info ====")
     try: 
         prompt = f""" 
         Provide a structured list of sectors and their competitors for the following company description: 
@@ -118,9 +138,12 @@ def query_gemini_llm(description):
                 sector_name = lines[0].strip() 
                 competitors = [l.strip() for l in lines[1:]] 
                 sectors.append({"name": sector_name, "competitors": competitors}) 
+        print("✅ Gemini response parsed successfully.")
         return sectors 
     except Exception as e: 
+        print(f"❌ Error querying Gemini: {str(e)}")
         return None 
+
  
 @app.route("/") 
 def home(): 
